@@ -274,6 +274,23 @@ Tensor Tensor_divf(Tensor self, float other);
 Tensor Tensor_powf(Tensor self, float other);
 
 /**
+ * @brief Performs batch matrix multiplication for two 3D tensors.
+ *        For each batch index, multiplies the corresponding {m, n} and {n, p} matrices:
+ *        - self: shape {batch, m, n}
+ *        - other: shape {batch, n, p}
+ *        Returns a tensor of shape {batch, m, p} where each slice is the matrix product of the input slices.
+ *        Only supports strictly matched batch sizes and no broadcasting.
+ *        Each batch slice is extracted using Tensor_batch_slice, and standard Tensor_matmul is applied.
+ *        Prints the dimensions for each batch multiplication for debugging.
+ *        The output tensor contains all resulting batch matrix products.
+ *
+ * @param self Input tensor of shape {batch, m, n}
+ * @param other Input tensor of shape {batch, n, p}
+ * @return Output tensor of shape {batch, m, p} with the results of all batch multiplications
+ */
+Tensor Tensor_matmul_batch(Tensor self, Tensor other);
+
+/**
  * @brief Matrix multiplication of two tensors
  * @param self First tensor (left operand)
  * @param other Second tensor (right operand)
