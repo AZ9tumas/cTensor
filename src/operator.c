@@ -229,91 +229,6 @@ static Tensor GradFn_matmul(Tensor self, int i) {
     return Tensor_transpose(Tensor_detach(self.node->inputs[1 - i]));
 }
 
-Tensor Tensor_batch_slice(Tensor t, int batch_idx, int group_idx) {
-    int dim = TensorShape_dim(t.shape);
-
-    int m, n, offset;
-    TensorShape slice_shape = {0, 0, 0, 0};
-
-    if (dim == 3) {
-        int b = t.shape[0]; m = t.shape[1]; n = t.shape[2];
-        assert(batch_idx >= 0 && batch_idx < b);
-
-        offset = batch_idx * m * n;
-        slice_shape[0] = m; slice_shape[1] = n;
-    } else if (dim == 4) {
-        int b = t.shape[0], g = t.shape[1];
-        m = t.shape[2]; n = t.shape[3];
-        
-        assert(batch_idx >= 0 && batch_idx < b);
-        assert(group_idx >= 0 && group_idx < g);
-        offset = (batch_idx * g + group_idx) * m * n;
-        slice_shape[0] = m; slice_shape[1] = n;
-    } else {
-        assert(0);
-    }
-
-    Tensor res = Tensor_new(slice_shape, t.node != NULL);
-    memcpy(res.data->flex, t.data->flex + offset, sizeof(float) * m * n);
-    return res;
-}
-
-Tensor Tensor_matmul_batch(Tensor self, Tensor other) {
-    int self_dim = TensorShape_dim(self.shape);
-    int other_dim = TensorShape_dim(other.shape);
-
-    assert((self_dim == 3 || self_dim == 4) && (other_dim == 3 || other_dim == 4));
-
-    // broadcasting
-    int batch = (self.shape[0] > other.shape[0]) ? self.shape[0] : other.shape[0];
-
-    int self_g = (self_dim == 4) ? self.shape[1] : 1;
-    int other_g = (other_dim == 4) ? other.shape[1] : 1;
-    int group = (self_g > other_g) ? self_g : other_g;
-
-    int m = self.shape[self_dim - 2];
-    int n = self.shape[self_dim - 1];
-    int p = other.shape[other_dim - 1];
-    // {b,g,m,n} * {b,g,n,p} -> {b,g,m,p} (g=1 for 3D)
-    
-    assert(n == other.shape[other_dim - 2]);
-
-    TensorShape res_shape = {batch, m, p, 0};
-    if (group > 1) {
-        res_shape[0] = batch;
-        res_shape[1] = group;
-        res_shape[2] = m;
-        res_shape[3] = p;
-    }
-
-    Tensor res = Tensor_new(res_shape, self.node != NULL || other.node != NULL);
-    for(int b = 0; b < batch; b++) {
-        int selfbatch = self.shape[0] <= b ? self.shape[0] - 1 : b;
-        int otherbatch = other.shape[0] <= b ? other.shape[0] - 1 : b;
-
-        for(int g = 0; g < group; g++) {
-            int selfgroup = self_g <= g ? self_g - 1 : g;
-            int othergroup = other_g <= g ? other_g - 1 : g;
-
-            Tensor self_slice = Tensor_batch_slice(self, selfbatch, selfgroup);
-            Tensor other_slice = Tensor_batch_slice(other, otherbatch, othergroup);
-            Tensor res_slice = Tensor_matmul(self_slice, other_slice);
-
-            int offset = ((batch > 1) ? b * group + g : g) * m * p;
-            memcpy(res.data->flex + offset, res_slice.data->flex, sizeof(float) * m * p);
-        }
-    }
-
-    if(res.node != NULL) {
-        res.node->grad_fn = GradFn_matmul;
-        res.node->inputs[0] = self;
-        res.node->inputs[1] = other;
-        res.node->n_inputs = 2;
-        res.node->name = "MatmulBatch";
-    }
-    return res;
-}
-
 Tensor Tensor_matmul(Tensor self, Tensor other) {
     int self_dim = TensorShape_dim(self.shape);
     int other_dim = TensorShape_dim(other.shape);
@@ -321,9 +236,13 @@ Tensor Tensor_matmul(Tensor self, Tensor other) {
     assert(self_dim >= 2);
     assert(other_dim >= 2);
 
-    if (self_dim > 2 || other_dim > 2) {
-        return Tensor_matmul_batch(self, other);
-    }
+    int batch_self = (self_dim >= 3) ? self.shape[0] : 1;
+    int batch_other = (other_dim >= 3) ? other.shape[0] : 1;
+    int batch = (batch_self > batch_other) ? batch_self : batch_other;
+
+    int group_self = (self_dim == 4) ? self.shape[1] : 1;
+    int group_other = (other_dim == 4) ? other.shape[1] : 1;
+    int group = (group_self > group_other) ? group_self : group_other;
 
     int m = self.shape[self_dim - 2];
     int n = self.shape[self_dim - 1];
@@ -331,24 +250,68 @@ Tensor Tensor_matmul(Tensor self, Tensor other) {
 
     assert(n == other.shape[other_dim - 2]);
 
-    TensorShape res_shape;
-    memcpy(res_shape, self.shape, sizeof(TensorShape));
-    res_shape[self_dim - 1] = p;
+    bool has4D = (self_dim == 4 || other_dim == 4);
 
-    // here weight/bias have .node != NULL, so res have GradNode
-    Tensor res = Tensor_new(res_shape, self.node != NULL || other.node != NULL);
-
-    for(int i = 0; i < m; i++) {
-        for(int j = 0; j < p; j++) {
-            float sum = 0;
-            for(int k = 0; k < n; k++) {
-                sum += self.data->flex[i * n + k] * other.data->flex[k * p + j];
-            }
-            res.data->flex[i * p + j] = sum;
+    TensorShape res_shape = {0, 0, 0, 0};
+    if (self_dim <= 2 && other_dim <= 2) {
+        res_shape[0] = m;
+        res_shape[1] = p;
+    } else {
+        res_shape[0] = batch;
+        if (has4D) {
+            res_shape[1] = group;
+            res_shape[2] = m;
+            res_shape[3] = p;
+        } else {
+            res_shape[1] = m;
+            res_shape[2] = p;
+            res_shape[3] = 0;
         }
     }
 
-    if(res.node != NULL) {
+    Tensor res = Tensor_new(res_shape, self.node != NULL || other.node != NULL);
+
+    for (int b = 0; b < batch; b++) {
+        int self_b = (batch_self <= b) ? batch_self - 1 : b;
+        int other_b = (batch_other <= b) ? batch_other - 1 : b;
+
+        for (int g = 0; g < group; g++) {
+            int self_g = (group_self <= g) ? group_self - 1 : g;
+            int other_g = (group_other <= g) ? group_other - 1 : g;
+
+            int offset_self = 0;
+            if (self_dim == 4) {
+                offset_self = self_b * self.shape[1] * m * n + self_g * m * n;
+            } else if (self_dim == 3) {
+                offset_self = self_b * m * n;
+            }
+
+            int offset_other = 0;
+            if (other_dim == 4) {
+                offset_other = other_b * other.shape[1] * n * p + other_g * n * p;
+            } else if (other_dim == 3) {
+                offset_other = other_b * n * p;
+            }
+
+            int offset_res = ((batch > 1) ? b * group + g : g) * m * p;
+
+            float* self_ptr = self.data->flex + offset_self;
+            float* other_ptr = other.data->flex + offset_other;
+            float* res_ptr = res.data->flex + offset_res;
+
+            for (int i = 0; i < m; i++) {
+                for (int j = 0; j < p; j++) {
+                    float sum = 0;
+                    for (int k = 0; k < n; k++) {
+                        sum += self_ptr[i * n + k] * other_ptr[k * p + j];
+                    }
+                    res_ptr[i * p + j] = sum;
+                }
+            }
+        }
+    }
+
+    if (res.node != NULL) {
         res.node->grad_fn = GradFn_matmul;
         res.node->inputs[0] = self;
         res.node->inputs[1] = other;

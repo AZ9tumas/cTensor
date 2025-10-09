@@ -282,18 +282,17 @@ void test_matmul_operator() {
             float exp_d[] = {1.0745f, 1.4433f, 0.7899f, 1.5456f, 1.4509f, 0.6064f,
             0.9774f, 0.4197f, 1.1520f, 1.0043f, 1.7620f, 1.9396f, 1.4062f, 1.9461f, 1.9424f,
             0.5314f, 0.8391f, 0.8748f, 0.3471f, 1.1284f, 1.1388f, 1.1492f, 1.0333f,
-            0.8970f, 1.6950f, 0.9817f, 1.0865f, 1.0302f, 0.7693f, 1.6373f};
+            0.8970f, 1.6950f, 0.9817f, 1.0865f, 1.0302f, 0.7693f, 1.6372f};
 
             Tensor t1 = create_test_tensor(s1_shape, d1, false);
             Tensor t2 = create_test_tensor(s2_shape, d2, false);
             Tensor expected_res = create_test_tensor(exp_shape, exp_d, false);
             Tensor actual_res = Tensor_matmul(t1, t2);
 
-            compare_tensors(&actual_res, &expected_res, op_name, tc_name, 1,
-            TEST_FLOAT_TOLERANCE);
+            compare_tensors(&actual_res, &expected_res, op_name, tc_name, 1, TEST_FLOAT_TOLERANCE);
         }
 
-        // Sub-test case 1.1: Batch matrix multiplication using integers only (2x3x4 * 2x4x5)
+        // Sub-test case 2: Batch matrix multiplication using integers only (2x3x4 * 2x4x5)
         {
             TensorShape s1_shape = {2, 3, 4};
             float d1[] = {
@@ -332,10 +331,10 @@ void test_matmul_operator() {
             Tensor expected_res = create_test_tensor(exp_shape, exp_d, false);
             Tensor actual_res = Tensor_matmul(t1, t2);
 
-            compare_tensors(&actual_res, &expected_res, op_name, tc_name, 5, TEST_FLOAT_TOLERANCE);
+            compare_tensors(&actual_res, &expected_res, op_name, tc_name, 2, TEST_FLOAT_TOLERANCE);
         }
 
-        // Sub-test 2: Batch of identity matrices — result should equal second operand
+        // Sub-test 3: Batch of identity matrices — result should equal second operand
         // s1: {3,2,2} (3 identity matrices), s2: {3,2,2}
         {
             TensorShape s1_shape = {3, 2, 2};
@@ -362,10 +361,10 @@ void test_matmul_operator() {
             Tensor expected_res = create_test_tensor(exp_shape, exp_d, false);
             Tensor actual_res = Tensor_matmul(t1, t2);
 
-            compare_tensors(&actual_res, &expected_res, op_name, tc_name, 2, TEST_FLOAT_TOLERANCE);
+            compare_tensors(&actual_res, &expected_res, op_name, tc_name, 3, TEST_FLOAT_TOLERANCE);
         }
 
-        // Sub-test 3: Rectangular per-batch multiply (2 batches): {2,1,3} @ {2,3,2} -> {2,1,2}
+        // Sub-test 4: Rectangular per-batch multiply (2 batches): {2,1,3} @ {2,3,2} -> {2,1,2}
         {
             TensorShape s1_shape = {2, 1, 3};
             float d1[] = {
@@ -388,10 +387,10 @@ void test_matmul_operator() {
             Tensor expected_res = create_test_tensor(exp_shape, exp_d, false);
             Tensor actual_res = Tensor_matmul(t1, t2);
 
-            compare_tensors(&actual_res, &expected_res, op_name, tc_name, 3, TEST_FLOAT_TOLERANCE);
+            compare_tensors(&actual_res, &expected_res, op_name, tc_name, 4, TEST_FLOAT_TOLERANCE);
         }
 
-        // Sub-test 4: Batch of column-result matrices using ones to test reduction (4 batches): {4,2,3}@{4,3,1} -> {4,2,1}
+        // Sub-test 5: Batch of column-result matrices using ones to test reduction (4 batches): {4,2,3}@{4,3,1} -> {4,2,1}
         {
             TensorShape s1_shape = {4, 2, 3};
             // each 2x3 filled with ones
@@ -411,7 +410,7 @@ void test_matmul_operator() {
             Tensor expected_res = create_test_tensor(exp_shape, exp_d, false);
             Tensor actual_res = Tensor_matmul(t1, t2);
 
-            compare_tensors(&actual_res, &expected_res, op_name, tc_name, 4, TEST_FLOAT_TOLERANCE);
+            compare_tensors(&actual_res, &expected_res, op_name, tc_name, 5, TEST_FLOAT_TOLERANCE);
         }
     }
 
@@ -463,10 +462,10 @@ void test_matmul_operator() {
 
             TensorShape exp_shape = {4, 3};
             float exp_d[] = {
-                0.7616f, 1.3740f, 1.5423f,  // Row 0
-                0.3637f, 1.5308f, 1.3906f,  // Row 1
-                0.5558f, 1.1748f, 1.4725f,  // Row 2
-                0.3675f, 0.9730f, 0.9582f,  // Row 3
+                0.7617f, 1.3740f, 1.5422f,  // Row 0
+                0.3638f, 1.5307f, 1.3906f,  // Row 1
+                0.5559f, 1.1747f, 1.4724f,  // Row 2
+                0.3675f, 0.9729f, 0.9581f,  // Row 3
             };
 
             Tensor t1 = create_test_tensor(s1_shape, d1, false);
@@ -537,8 +536,8 @@ void test_matmul_operator() {
                 0.4677f, 0.3816f,
                 1.1133f, 0.8875f,
                 
-                0.8504f, 0.6607f,
-                0.3593f, 0.1660f,
+                0.8505f, 0.6607f,
+                0.3593f, 0.1659f,
             };
 
             Tensor t1 = create_test_tensor(s1_shape, d1, false);
@@ -604,14 +603,15 @@ void test_matmul_operator() {
                 4.0f, 5.0f,
                 10.0f, 11.0f,
                 
-                5.0f, 8.0f,
-                14.0f, 20.0f,
+                4.0f, 8.0f,
+                13.0f, 20.0f,
             };
 
             Tensor t1 = create_test_tensor(s1_shape, d1, false);
             Tensor t2 = create_test_tensor(s2_shape, d2, false);
             Tensor expected_res = create_test_tensor(exp_shape, exp_d, false);
             Tensor actual_res = Tensor_matmul(t1, t2);
+
 
             compare_tensors(&actual_res, &expected_res, op_name, tc_name, 5, TEST_FLOAT_TOLERANCE);
         }
@@ -643,14 +643,14 @@ void test_matmul_operator() {
                 1.0f, 2.0f,
                 1.0f, 1.0f,
                 
-                2.0f, 2.0f,
+                3.0f, 2.0f,
                 3.0f, 2.0f,
                 
                 1.0f, 1.0f,
                 2.0f, 1.0f,
                 
-                0.0f, 2.0f,
                 1.0f, 3.0f,
+                3.0f, 3.0f,
             };
 
             Tensor t1 = create_test_tensor(s1_shape, d1, false);
