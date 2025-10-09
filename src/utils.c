@@ -222,35 +222,6 @@ TensorMaxMinResult Tensor_min_dim(Tensor self, int dim) {
     return result;
 }
 
-Tensor Tensor_batch_slice(Tensor t, int batch_idx, int group_idx) {
-    int dim = TensorShape_dim(t.shape);
-
-    int m, n, offset;
-    TensorShape slice_shape = {0, 0, 0, 0};
-
-    if (dim == 3) {
-        int b = t.shape[0]; m = t.shape[1]; n = t.shape[2];
-        assert(batch_idx >= 0 && batch_idx < b);
-
-        offset = batch_idx * m * n;
-        slice_shape[0] = m; slice_shape[1] = n;
-    } else if (dim == 4) {
-        int b = t.shape[0], g = t.shape[1];
-        m = t.shape[2]; n = t.shape[3];
-        
-        assert(batch_idx >= 0 && batch_idx < b);
-        assert(group_idx >= 0 && group_idx < g);
-        offset = (batch_idx * g + group_idx) * m * n;
-        slice_shape[0] = m; slice_shape[1] = n;
-    } else {
-        assert(0);
-    }
-
-    Tensor res = Tensor_new(slice_shape, t.node != NULL);
-    memcpy(res.data->flex, t.data->flex + offset, sizeof(float) * m * n);
-    return res;
-}
-
 void cten_assert(bool cond, const char* fmt, ...) {
     if(!cond) {
         va_list args;
